@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スライド修正ツール</title>
+<style>
+  :root {
+    --teal: #14b8a6;
+    --teal-dark: #0f766e;
+    --ink: #1f2937;
+    --sub: #6b7280;
+    --bg: #f3f4f6;
+    --card: #ffffff;
+    --line: #e5e7eb;
+    --danger: #ef4444;
+    --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  /* ===== Header ===== */
+  #header {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 52px; padding: 0 16px;
+    background: var(--card); border-bottom: 1px solid var(--line);
+  }
+  #docTitle {
+    font-size: 16px; font-weight: 700; color: var(--teal-dark);
+    border: none; background: transparent; outline: none;
+    min-width: 120px; max-width: 50vw; padding: 4px 6px; border-radius: 6px;
+  }
+  #docTitle:hover, #docTitle:focus { background: var(--bg); }
+  .hbtn {
+    border: 1px solid var(--teal); color: var(--teal-dark); background: #fff;
+    border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer;
+    font-weight: 600;
+  }
+  .hbtn:hover { background: #f0fdfa; }
+
+  /* ===== Layout ===== */
+  #layout { display: flex; height: calc(100% - 52px); }
+
+  /* ===== Sidebar ===== */
+  #sidebar {
+    width: 168px; flex-shrink: 0; overflow-y: auto;
+    background: var(--card); border-right: 1px solid var(--line);
+    padding: 10px 8px 40px;
+  }
+  #sidebarTitle { font-size: 11px; color: var(--sub); font-weight: 700; margin: 4px 4px 10px; }
+  .thumb {
+    display: flex; gap: 6px; align-items: flex-start;
+    margin-bottom: 10px; cursor: pointer; border-radius: 8px; padding: 4px;
+  }
+  .thumb.active { background: #ccfbf1; }
+  .thumb .tnum { font-size: 11px; color: var(--sub); width: 16px; text-align: right; padding-top: 2px; }
+  .thumb .tdragger { cursor: grab; color: #cbd5e1; font-size: 12px; line-height: 1; padding-top: 4px; }
+  .thumb .tframe {
+    width: 118px; height: 67px; overflow: hidden; border-radius: 4px;
+    border: 1.5px solid var(--line); background: #fff; position: relative; flex-shrink: 0;
+  }
+  .thumb.active .tframe { border-color: var(--teal); }
+  .thumb .thost { width: 1280px; height: 720px; transform: scale(0.0902); transform-origin: top left; pointer-events: none; }
+  .thumb.dragover { outline: 2px dashed var(--teal); }
+  .thumb .tbadge {
+    position: absolute; right: 2px; top: 2px; background: var(--amber); color: #fff;
+    font-size: 9px; border-radius: 999px; padding: 1px 5px; font-weight: 700;
+  }
+
+  /* ===== Main ===== */
+  #main { flex: 1; overflow-y: auto; padding: 14px 22px 80px; position: relative; }
+
+  /* Toolbar */
+  #toolbar {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(243,244,246,0.95); backdrop-filter: blur(4px);
+    padding: 6px 0 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  .tbtn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer;
+    font-weight: 600; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .tbtn:hover { border-color: var(--teal); color: var(--teal-dark); }
+  .tbtn.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .tbtn.primary:hover { background: var(--teal-dark); color: #fff; }
+  .tbtn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .tbtn.dark:hover { background: #111827; color: #fff; }
+  .tbtn.warn { border-color: #fda4af; color: var(--danger); }
+  .tbtn.warn:hover { background: #fff1f2; }
+  #saveState { font-size: 12px; color: var(--sub); opacity: 0; transition: opacity .3s; }
+  #saveState.show { opacity: 1; }
+
+  /* Slide cards */
+  .slide-card { margin: 18px auto 0; max-width: 980px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .chip {
+    border: 1px solid var(--teal); color: var(--teal); background: rgba(255,255,255,0.6);
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    border-radius: 999px; padding: 3px 12px;
+  }
+  .card-controls { display: flex; gap: 5px; }
+  .cbtn {
+    width: 30px; height: 30px; border-radius: 8px; border: none; cursor: pointer;
+    background: #374151; color: #fff; font-size: 13px; display: inline-flex;
+    align-items: center; justify-content: center;
+  }
+  .cbtn:hover { background: var(--teal-dark); }
+  .cbtn.del:hover { background: var(--danger); }
+  body.view-mode .card-controls { display: none; }
+
+  .canvas-wrap {
+    position: relative; width: 100%; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); background: #fff;
+  }
+  .canvas-host { width: 1280px; height: 720px; transform-origin: top left; }
+  .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+
+  /* Comment badge on elements */
+  .cbadge {
+    position: absolute; pointer-events: auto; cursor: pointer;
+    min-width: 22px; height: 22px; border-radius: 999px;
+    background: var(--amber); color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid #fff;
+    transform: translate(-50%, -50%); padding: 0 4px;
+  }
+  .cbadge.empty { background: #94a3b8; }
+  .cbadge:hover { transform: translate(-50%, -50%) scale(1.15); }
+
+  /* Floating element toolbar */
+  #elToolbar {
+    position: fixed; z-index: 60; display: none; gap: 4px;
+    background: var(--ink); border-radius: 8px; padding: 4px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  }
+  #elToolbar button {
+    border: none; background: transparent; color: #fff; font-size: 11.5px;
+    padding: 4px 8px; border-radius: 5px; cursor: pointer; font-weight: 600;
+  }
+  #elToolbar button:hover { background: rgba(255,255,255,0.18); }
+  #elToolbar .hint { color: #9ca3af; font-size: 10px; padding: 4px 6px; }
+
+  /* Memo row */
+  .memo-row { margin-top: 8px; }
+  .memo-row textarea {
+    width: 100%; min-height: 34px; resize: vertical;
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+    font-size: 12.5px; font-family: inherit; background: #fffbeb; outline: none;
+  }
+  .memo-row textarea:focus { border-color: var(--amber); }
+  .memo-row textarea:placeholder-shown { background: #fff; }
+
+  /* Comment popup */
+  #cPopup {
+    position: fixed; z-index: 70; display: none; width: 300px;
+    background: #fff; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  #cPopup .ph {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #ecfdf5; padding: 8px 12px; font-size: 12px; font-weight: 700; color: var(--teal-dark);
+  }
+  #cPopup .ph button { border: none; background: none; cursor: pointer; font-size: 14px; color: var(--sub); }
+  #cPopup .pctx { font-size: 11px; color: var(--sub); padding: 8px 12px 0; line-height: 1.5; }
+  #cPopup .plist { max-height: 160px; overflow-y: auto; padding: 6px 12px; }
+  #cPopup .pitem {
+    background: #f9fafb; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px;
+    font-size: 12px; display: flex; justify-content: space-between; gap: 6px; align-items: flex-start;
+  }
+  #cPopup .pitem button { border: none; background: none; cursor: pointer; color: #cbd5e1; font-size: 12px; flex-shrink: 0; }
+  #cPopup .pitem button:hover { color: var(--danger); }
+  #cPopup .pempty { font-size: 11.5px; color: #9ca3af; text-align: center; padding: 10px 0; }
+  #cPopup .pinput { display: flex; gap: 6px; padding: 8px 12px 12px; }
+  #cPopup .pinput textarea {
+    flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
+    font-size: 12px; font-family: inherit; resize: none; height: 52px; outline: none;
+  }
+  #cPopup .pinput textarea:focus { border-color: var(--teal); }
+  #cPopup .pinput button {
+    border: none; background: var(--teal); color: #fff; border-radius: 8px;
+    padding: 0 14px; font-size: 12px; font-weight: 700; cursor: pointer; align-self: stretch;
+  }
+
+  /* Right drawer (comment list) */
+  #drawer {
+    position: fixed; top: 52px; right: -360px; width: 350px; bottom: 0; z-index: 50;
+    background: #fff; border-left: 1px solid var(--line); transition: right .25s;
+    display: flex; flex-direction: column;
+  }
+  #drawer.open { right: 0; box-shadow: -6px 0 24px rgba(0,0,0,0.1); }
+  #drawer .dh { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
+  #drawer .dh button { border: none; background: none; font-size: 16px; cursor: pointer; color: var(--sub); }
+  #drawerBody { flex: 1; overflow-y: auto; padding: 12px 16px 40px; }
+  .dgroup { margin-bottom: 16px; }
+  .dgroup h4 { font-size: 12.5px; margin: 0 0 6px; color: var(--teal-dark); cursor: pointer; }
+  .dgroup h4:hover { text-decoration: underline; }
+  .ditem {
+    background: #f9fafb; border-radius: 8px; padding: 7px 10px; margin-bottom: 6px;
+    font-size: 12px; line-height: 1.5;
+  }
+  .ditem .dtarget { color: var(--sub); font-size: 10.5px; display: block; margin-bottom: 2px; }
+  .ditem .ddel { float: right; border: none; background: none; cursor: pointer; color: #cbd5e1; }
+  .ditem .ddel:hover { color: var(--danger); }
+  .ditem.memo { background: #fffbeb; }
+
+  /* ===== Import modal ===== */
+  #importModal {
+    position: fixed; inset: 0; z-index: 100; background: rgba(17,24,39,0.55);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #importModal.hidden { display: none; }
+  .imp-box {
+    width: min(720px, 92vw); max-height: 88vh; overflow-y: auto;
+    background: #fff; border-radius: 16px; padding: 26px 30px;
+  }
+  .imp-box h2 { margin: 0 0 4px; font-size: 19px; color: var(--teal-dark); }
+  .imp-box .sub { font-size: 12.5px; color: var(--sub); margin-bottom: 16px; line-height: 1.6; }
+  .imp-box textarea {
+    width: 100%; height: 170px; border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; font-family: Consolas, monospace; resize: vertical; outline: none;
+  }
+  .imp-box textarea:focus { border-color: var(--teal); }
+  #dropZone {
+    margin-top: 10px; border: 2px dashed var(--line); border-radius: 10px;
+    padding: 16px; text-align: center; font-size: 12.5px; color: var(--sub); cursor: pointer;
+  }
+  #dropZone.over { border-color: var(--teal); background: #f0fdfa; }
+  .imp-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+  .imp-err { color: var(--danger); font-size: 12px; margin-top: 8px; display: none; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: #fff; padding: 10px 22px; border-radius: 999px;
+    font-size: 13px; opacity: 0; transition: all .25s; z-index: 200; pointer-events: none;
+    max-width: 80vw;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <input id="docTitle" value="資料タイトル" title="クリックしてタイトルを編集">
+  <button class="hbtn" id="btnNewTab">↗ 別タブで開く</button>
+</div>
+
+<div id="layout">
+  <div id="sidebar">
+    <div id="sidebarTitle">スライド一覧</div>
+    <div id="thumbList"></div>
+  </div>
+
+  <div id="main">
+    <div id="toolbar">
+      <button class="tbtn primary" id="btnMode">✓ 編集中</button>
+      <button class="tbtn" id="btnAddSlide">＋ スライド追加</button>
+      <button class="tbtn" id="btnDrawer">💬 コメント一覧</button>
+      <button class="tbtn" id="btnCopyMemo">📋 メモ一覧をコピー</button>
+      <button class="tbtn dark" id="btnExport">⬇ HTML書き出し</button>
+      <button class="tbtn" id="btnRevert">↺ リセット</button>
+      <button class="tbtn warn" id="btnNew">新規読み込み</button>
+      <span id="saveState">保存しました ✓</span>
+    </div>
+    <div id="slideList"></div>
+  </div>
+</div>
+
+<div id="elToolbar">
+  <button id="etComment">💬 コメント</button>
+  <button id="etDelete">🗑 削除</button>
+  <span class="hint">ドラッグで移動 / ダブルクリックで文字編集</span>
+</div>
+
+<div id="cPopup">
+  <div class="ph"><span>💬 コメント</span><button id="cpClose">✕</button></div>
+  <div class="pctx" id="cpCtx"></div>
+  <div class="plist" id="cpList"></div>
+  <div class="pinput">
+    <textarea id="cpInput" placeholder="修正指示を入力…（Ctrl+Enterで追加）"></textarea>
+    <button id="cpAdd">追加</button>
+  </div>
+</div>
+
+<div id="drawer">
+  <div class="dh"><span>💬 コメント・メモ一覧</span><button id="drClose">✕</button></div>
+  <div id="drawerBody"></div>
+</div>
+
+<div id="importModal" class="hidden">
+  <div class="imp-box">
+    <h2>HTMLスライドを読み込む</h2>
+    <div class="sub">
+      AI（Claudeなど）が作ったHTMLを貼り付けるか、ファイルを読み込んでください。<br>
+      形式: 各スライドが <b>&lt;section class="slide"&gt;</b>（1280×720px）の1つのHTMLファイル。<br>
+      AIに依頼するときは「規約プロンプトをコピー」を使うと確実です。
+    </div>
+    <textarea id="impText" placeholder="ここにHTMLを貼り付け…&#10;&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;…&lt;section class=&quot;slide&quot;&gt;…&lt;/section&gt;…"></textarea>
+    <div id="dropZone">📂 .htmlファイルをドラッグ＆ドロップ、またはクリックして選択</div>
+    <input type="file" id="fileInput" accept=".html,.htm" style="display:none">
+    <div class="imp-err" id="impErr"></div>
+    <div class="imp-actions">
+      <button class="tbtn primary" id="btnImport">読み込む</button>
+      <button class="tbtn" id="btnCopyRule">📋 規約プロンプトをコピー</button>
+      <button class="tbtn" id="btnSample">サンプルを読み込む</button>
+      <button class="tbtn" id="btnImpCancel" style="display:none">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* =========================================================
+   スライド修正ツール
+   AIが書いたHTMLスライドをビジュアル表示し、
+   直接編集・コメント・メモ → AIへの修正指示として書き出す
+   ========================================================= */
+
+const LS_KEY = 'slide-editor-v1';
+
+let state = {
+  title: '資料タイトル',
+  css: '',
+  fontLinks: [],     // Google Fonts等の<link>タグhref
+  slides: [],        // [{id, html}]
+  original: null,    // {css, slides} リセット用
+  comments: [],      // [{id, slideId, eid, excerpt, text, ts}]
+  memos: {},         // {slideId: text}
+  nextEid: 1,
+  nextSlideNum: 1,
+  nextCid: 1,
+};
+let editMode = true;
+let selected = null;   // {slideId, eid}
+let popupTarget = null; // {slideId, eid}
+let saveTimer = null;
+let thumbTimer = null;
+
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+/* ===== 編集用にshadow内へ注入するCSS ===== */
+const EDITOR_SHADOW_CSS = `
+  [data-eid].sel-el { outline: 2px solid #14b8a6 !important; outline-offset: 2px; }
+  [data-eid][contenteditable="true"] { outline: 2px dashed #f59e0b !important; outline-offset: 2px; cursor: text; }
+  body.edit [data-eid]:hover { outline: 1px dashed rgba(20,184,166,0.5); }
+`;
+
+/* ===== 規約プロンプト ===== */
+const RULE_PROMPT = `HTMLスライド資料を作ってください。あとで専用ツールで編集するため、必ず次の規約に従ってください。
+
+【規約】
+- 1つの完全なHTMLファイルにまとめる（外部CSS/JSファイルは使わない。JSは不要）
+- 各スライドは <body> 直下の <section class="slide"> として作る（1枚 = 1つのsection）
+- スライドサイズは 1280×720px 固定。CSSに必ず以下を含める:
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+- スタイルは <head> 内の <style> 1つにまとめる
+- 各 section には data-label="OPENING" のような短い英字ラベルを付ける
+- Webフォントを使う場合は Google Fonts の <link> を <head> に置く
+
+【内容】
+（ここに資料のテーマ・枚数・トーンなどを書いてください）`;
+
+/* ===== サンプルスライド ===== */
+const SAMPLE_HTML = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>サンプル資料</title>
+<style>
+.slide { width:1280px; height:720px; position:relative; overflow:hidden; font-family:"Hiragino Sans","Noto Sans JP",sans-serif; }
+.s-dark { background:#0c2521; color:#f5f5f0; }
+.s-light { background:#f7f6f2; color:#1f2937; }
+.center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; text-align:center; }
+h1 { font-size:64px; margin:0; line-height:1.4; }
+h2 { font-size:44px; margin:0; }
+.accent { color:#2dd4bf; }
+.lead { font-size:22px; letter-spacing:4px; color:#9ca3af; margin:0; }
+ul.points { font-size:26px; line-height:2.2; margin:0; padding-left:1.2em; }
+.num { position:absolute; right:36px; bottom:24px; font-size:14px; opacity:0.5; }
+</style></head><body>
+<section class="slide s-dark" data-label="OPENING">
+  <div class="center">
+    <h1>一生モノの<br><span class="accent">AI×デザイン思考</span>を<br>ここで。</h1>
+    <p class="lead">DESIGN × AI セミナー</p>
+  </div>
+  <div class="num">01</div>
+</section>
+<section class="slide s-light" data-label="AGENDA">
+  <div class="center">
+    <h2>今日お話しすること</h2>
+    <ul class="points">
+      <li>なぜ今、デザイン思考なのか</li>
+      <li>AIで変わる資料づくりのワークフロー</li>
+      <li>明日から使えるツールと習慣</li>
+    </ul>
+  </div>
+  <div class="num">02</div>
+</section>
+<section class="slide s-dark" data-label="MESSAGE">
+  <div class="center">
+    <h2>「<span class="accent">伝わる</span>」は、設計できる。</h2>
+    <p class="lead">DESIGN IS A SKILL</p>
+  </div>
+  <div class="num">03</div>
+</section>
+</body></html>`;
+
+/* ===================== ユーティリティ ===================== */
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function flashSaved() {
+  const s = $('#saveState');
+  s.classList.add('show');
+  clearTimeout(s._tm);
+  s._tm = setTimeout(() => s.classList.remove('show'), 1800);
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    flashSaved();
+  }, 500);
+}
+
+function excerptOf(el) {
+  const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+  if (t) return t.length > 30 ? t.slice(0, 30) + '…' : t;
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'img') return '画像';
+  return `<${tag}>要素`;
+}
+
+async function copyText(text, doneMsg) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(doneMsg);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+    toast(doneMsg);
+  }
+}
+
+/* ===================== 読み込み・パース ===================== */
+
+function parseDeck(htmlText) {
+  const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+  let sections = $$('section.slide', doc);
+  if (!sections.length) sections = $$('.slide', doc);
+  if (!sections.length) {
+    return { error: '<section class="slide"> が見つかりません。規約プロンプトを使ってAIにHTMLを作り直してもらってください。' };
+  }
+  const css = $$('style', doc).map(s => s.textContent).join('\n');
+  const fontLinks = $$('link[rel="stylesheet"], link[rel="preconnect"]', doc)
+    .map(l => l.outerHTML)
+    .filter(h => /fonts\.googleapis|fonts\.gstatic/.test(h));
+  const title = (doc.querySelector('title')?.textContent || '').trim() || '資料タイトル';
+  return { css, fontLinks, sections, title };
+}
+
+function assignEids(sectionEl) {
+  $$('*', sectionEl).forEach(el => {
+    if (!el.dataset.eid) el.dataset.eid = 'e' + (state.nextEid++);
+  });
+}
+
+function importDeck(htmlText) {
+  const parsed = parseDeck(htmlText);
+  if (parsed.error) return parsed.error;
+
+  state = {
+    title: parsed.title, css: parsed.css, fontLinks: parsed.fontLinks,
+    slides: [], original: null, comments: [], memos: {},
+    nextEid: 1, nextSlideNum: 1, nextCid: 1,
+  };
+  parsed.sections.forEach(sec => {
+    assignEids(sec);
+    state.slides.push({ id: 's' + (state.nextSlideNum++), html: sec.outerHTML });
+  });
+  state.original = { css: state.css, slides: state.slides.map(s => ({ ...s })) };
+  injectFonts();
+  $('#docTitle').value = state.title;
+  renderAll();
+  scheduleSave();
+  return null;
+}
+
+function injectFonts() {
+  $$('link[data-deck-font]').forEach(l => l.remove());
+  state.fontLinks.forEach(html => {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    const link = tpl.content.firstElementChild;
+    if (link) { link.dataset.deckFont = '1'; document.head.appendChild(link); }
+  });
+}
+
+/* ===================== レンダリング ===================== */
+
+function buildShadow(host, slideHtml, isEdit) {
+  const root = host.shadowRoot || host.attachShadow({ mode: 'open' });
+  root.innerHTML = `<style>
+    :host { display:block; width:1280px; height:720px; }
+    section.slide, .slide { margin:0; }
+    ${state.css}
+    ${isEdit ? EDITOR_SHADOW_CSS : ''}
+  </style>${slideHtml}`;
+  return root;
+}
+
+function renderAll() {
+  renderSlides();
+  renderThumbs();
+  updateModeUI();
+}
+
+function renderSlides() {
+  const list = $('#slideList');
+  list.innerHTML = '';
+  state.slides.forEach((slide, i) => {
+    const card = document.createElement('div');
+    card.className = 'slide-card';
+    card.dataset.id = slide.id;
+
+    const tpl = document.createElement('template');
+    tpl.innerHTML = slide.html;
+    const label = tpl.content.firstElementChild?.dataset.label || `SLIDE ${i + 1}`;
+
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="chip">${i + 1}　${escapeHtml(label)}</span>
+        <div class="card-controls">
+          <button class="cbtn" data-act="up" title="上へ移動">↑</button>
+          <button class="cbtn" data-act="down" title="下へ移動">↓</button>
+          <button class="cbtn" data-act="dup" title="複製">⧉</button>
+          <button class="cbtn" data-act="add" title="この下に空白スライドを追加">＋</button>
+          <button class="cbtn del" data-act="del" title="削除">🗑</button>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <div class="canvas-host"></div>
+        <div class="overlay"></div>
+      </div>
+      <div class="memo-row">
+        <textarea placeholder="✎ このスライドへのメモ（AIへの修正指示など）…" data-memo="${slide.id}">${escapeHtml(state.memos[slide.id] || '')}</textarea>
+      </div>`;
+
+    const host = $('.canvas-host', card);
+    buildShadow(host, slide.html, editMode);
+    list.appendChild(card);
+  });
+  applyScale();
+  renderAllMarkers();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function applyScale() {
+  $$('.slide-card').forEach(card => {
+    const wrap = $('.canvas-wrap', card);
+    const host = $('.canvas-host', card);
+    const w = wrap.clientWidth;
+    const scale = w / 1280;
+    host.style.transform = `scale(${scale})`;
+    wrap.style.height = (720 * scale) + 'px';
+  });
+}
+
+function renderThumbs() {
+  const list = $('#thumbList');
+  list.innerHTML = '';
+  $('#sidebarTitle').textContent = `スライド一覧 (${state.slides.length})`;
+  state.slides.forEach((slide, i) => {
+    const t = document.createElement('div');
+    t.className = 'thumb';
+    t.dataset.id = slide.id;
+    t.draggable = true;
+    const cCount = state.comments.filter(c => c.slideId === slide.id).length
+      + (state.memos[slide.id]?.trim() ? 1 : 0);
+    t.innerHTML = `
+      <span class="tnum">${i + 1}</span>
+      <span class="tdragger" title="ドラッグで並べ替え">≡</span>
+      <div class="tframe">
+        <div class="thost"></div>
+        ${cCount ? `<span class="tbadge">💬${cCount}</span>` : ''}
+      </div>`;
+    buildShadow($('.thost', t), slide.html, false);
+    t.addEventListener('click', () => {
+      $(`.slide-card[data-id="${slide.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $$('.thumb').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+    });
+    // 並べ替え
+    t.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', slide.id); });
+    t.addEventListener('dragover', e => { e.preventDefault(); t.classList.add('dragover'); });
+    t.addEventListener('dragleave', () => t.classList.remove('dragover'));
+    t.addEventListener('drop', e => {
+      e.preventDefault(); t.classList.remove('dragover');
+      const fromId = e.dataTransfer.getData('text/plain');
+      if (!fromId || fromId === slide.id) return;
+      const from = state.slides.findIndex(s => s.id === fromId);
+      const to = state.slides.findIndex(s => s.id === slide.id);
+      const [moved] = state.slides.splice(from, 1);
+      state.slides.splice(to, 0, moved);
+      renderAll(); scheduleSave();
+    });
+    list.appendChild(t);
+  });
+}
+
+function refreshThumbsSoon() {
+  clearTimeout(thumbTimer);
+  thumbTimer = setTimeout(renderThumbs, 400);
+}
+
+function updateModeUI() {
+  document.body.classList.toggle('view-mode', !editMode);
+  const b = $('#btnMode');
+  b.textContent = editMode ? '✓ 編集中' : '👁 閲覧モード';
+  b.classList.toggle('primary', editMode);
+  $$('.slide-card .canvas-host').forEach(host => {
+    const sec = host.shadowRoot?.querySelector('.slide');
+    if (sec) host.shadowRoot.querySelector('style').textContent = `
+      :host { display:block; width:1280px; height:720px; }
+      section.slide, .slide { margin:0; }
+      ${state.css}
+      ${editMode ? EDITOR_SHADOW_CSS : ''}`;
+  });
+}
+
+/* ===================== DOM → state 同期 ===================== */
+
+function getSection(slideId) {
+  const card = $(`.slide-card[data-id="${slideId}"]`);
+  return card ? $('.canvas-host', card).shadowRoot.querySelector('.slide') : null;
+}
+
+function syncSlide(slideId) {
+  const sec = getSection(slideId);
+  if (!sec) return;
+  // 新規要素にeid付与
+  $$('*', sec).forEach(el => { if (!el.dataset.eid) el.dataset.eid = 'e' + (state.nextEid++); });
+  const clone = sec.cloneNode(true);
+  $$('[contenteditable]', clone).forEach(el => el.removeAttribute('contenteditable'));
+  $$('.sel-el', clone).forEach(el => el.classList.remove('sel-el'));
+  clone.classList.remove('sel-el');
+  const slide = state.slides.find(s => s.id === slideId);
+  if (slide) slide.html = clone.outerHTML;
+  scheduleSave();
+  refreshThumbsSoon();
+}
+
+/* ===================== スライド操作 ===================== */
+
+function slideAct(slideId, act) {
+  const i = state.slides.findIndex(s => s.id === slideId);
+  if (i < 0) return;
+  if (act === 'up' && i > 0) {
+    [state.slides[i - 1], state.slides[i]] = [state.slides[i], state.slides[i - 1]];
+  } else if (act === 'down' && i < state.slides.length - 1) {
+    [state.slides[i + 1], state.slides[i]] = [state.slides[i], state.slides[i + 1]];
+  } else if (act === 'dup') {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = state.slides[i].html;
+    const sec = tpl.content.firstElementChild;
+    $$('*', sec).forEach(el => el.dataset.eid = 'e' + (state.nextEid++));
+    state.slides.splice(i + 1, 0, { id: 's' + (state.nextSlideNum++), html: sec.outerHTML });
+  } else if (act === 'add') {
+    state.slides.splice(i + 1, 0, makeBlankSlide());
+  } else if (act === 'del') {
+    if (!confirm(`スライド${i + 1}を削除しますか？`)) return;
+    const id = state.slides[i].id;
+    state.slides.splice(i, 1);
+    state.comments = state.comments.filter(c => c.slideId !== id);
+    delete state.memos[id];
+  } else { return; }
+  renderAll(); scheduleSave();
+}
+
+function makeBlankSlide() {
+  const id = 's' + (state.nextSlideNum++);
+  const e1 = 'e' + (state.nextEid++);
+  const e2 = 'e' + (state.nextEid++);
+  return {
+    id,
+    html: `<section class="slide" data-label="NEW" data-eid="${e1}" style="background:#ffffff;">` +
+      `<div data-eid="${e2}" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;color:#9ca3af;">新しいスライド（ダブルクリックで編集）</div>` +
+      `</section>`
+  };
+}
+
+/* ===================== 要素の選択・移動・編集 ===================== */
+
+function findEidTarget(e) {
+  for (const n of e.composedPath()) {
+    if (n instanceof Element && n.dataset?.eid && !n.classList.contains('slide')) return n;
+    if (n instanceof Element && n.classList?.contains('canvas-host')) break;
+  }
+  return null;
+}
+
+function clearSelection() {
+  if (selected) {
+    const sec = getSection(selected.slideId);
+    sec?.querySelector(`[data-eid="${selected.eid}"]`)?.classList.remove('sel-el');
+  }
+  selected = null;
+  $('#elToolbar').style.display = 'none';
+}
+
+function selectElement(slideId, el) {
+  clearSelection();
+  selected = { slideId, eid: el.dataset.eid };
+  el.classList.add('sel-el');
+  positionElToolbar(el);
+}
+
+function positionElToolbar(el) {
+  const tb = $('#elToolbar');
+  const r = el.getBoundingClientRect();
+  tb.style.display = 'flex';
+  tb.style.left = Math.max(8, r.left) + 'px';
+  tb.style.top = Math.max(56, r.top - 38) + 'px';
+}
+
+function parseTranslate(el) {
+  const m = (el.style.transform || '').match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/);
+  return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]), rest: el.style.transform.replace(m[0], '').trim() }
+           : { x: 0, y: 0, rest: el.style.transform || '' };
+}
+
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  const popup = $('#cPopup');
+  if (popup.style.display === 'block' && !popup.contains(e.target) && !e.target.closest?.('.cbadge')) {
+    closePopup();
+  }
+  if (!editMode) return;
+  const wrap = e.target.closest?.('.canvas-wrap');
+  if (!wrap) {
+    if (!e.target.closest('#elToolbar')) clearSelection();
+    return;
+  }
+  const card = wrap.closest('.slide-card');
+  const el = findEidTarget(e);
+  if (!el) { clearSelection(); return; }
+  if (el.isContentEditable) return; // テキスト編集中はドラッグしない
+
+  selectElement(card.dataset.id, el);
+  const t0 = parseTranslate(el);
+  const scale = wrap.clientWidth / 1280;
+  drag = { el, slideId: card.dataset.id, sx: e.clientX, sy: e.clientY, t0, scale, moved: false };
+  e.preventDefault();
+});
+
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.sx), dy = (e.clientY - drag.sy);
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  drag.moved = true;
+  const nx = drag.t0.x + dx / drag.scale;
+  const ny = drag.t0.y + dy / drag.scale;
+  drag.el.style.transform = `translate(${Math.round(nx)}px, ${Math.round(ny)}px) ${drag.t0.rest}`.trim();
+  positionElToolbar(drag.el);
+});
+
+document.addEventListener('pointerup', () => {
+  if (!drag) return;
+  if (drag.moved) {
+    syncSlide(drag.slideId);
+    renderMarkersFor(drag.slideId);
+  }
+  drag = null;
+});
+
+document.addEventListener('dblclick', e => {
+  if (!editMode) return;
+  const wrap = e.target.closest?.('.canvas-wrap');
+  if (!wrap) return;
+  const card = wrap.closest('.slide-card');
+  const el = findEidTarget(e);
+  if (!el || el.isContentEditable) return;
+  // 子に要素を持たないテキスト要素、または直接テキストを持つ要素を編集
+  el.setAttribute('contenteditable', 'true');
+  el.focus();
+  const onBlur = () => {
+    el.removeAttribute('contenteditable');
+    el.removeEventListener('blur', onBlur);
+    syncSlide(card.dataset.id);
+    renderMarkersFor(card.dataset.id);
+  };
+  el.addEventListener('blur', onBlur);
+});
+
+document.addEventListener('keydown', e => {
+  const ae = document.activeElement;
+  const typing = ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.isContentEditable);
+  // shadow内のcontenteditableチェック
+  const shadowEditing = $$('.canvas-host').some(h => {
+    const a = h.shadowRoot?.activeElement;
+    return a && a.isContentEditable;
+  });
+  if (e.key === 'Escape') { clearSelection(); closePopup(); $('#drawer').classList.remove('open'); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !typing && !shadowEditing) {
+    e.preventDefault();
+    deleteSelected();
+  }
+});
+
+function deleteSelected() {
+  if (!selected) return;
+  const sec = getSection(selected.slideId);
+  const el = sec?.querySelector(`[data-eid="${selected.eid}"]`);
+  if (el) {
+    el.remove();
+    syncSlide(selected.slideId);
+    renderMarkersFor(selected.slideId);
+    toast('要素を削除しました');
+  }
+  clearSelection();
+}
+
+$('#etDelete').addEventListener('click', deleteSelected);
+$('#etComment').addEventListener('click', () => {
+  if (!selected) return;
+  const sec = getSection(selected.slideId);
+  const el = sec?.querySelector(`[data-eid="${selected.eid}"]`);
+  if (el) openPopupFor(selected.slideId, selected.eid, el.getBoundingClientRect());
+});
+
+/* ===================== コメント ===================== */
+
+function renderAllMarkers() {
+  state.slides.forEach(s => renderMarkersFor(s.id));
+}
+
+function renderMarkersFor(slideId) {
+  const card = $(`.slide-card[data-id="${slideId}"]`);
+  if (!card) return;
+  const overlay = $('.overlay', card);
+  const wrap = $('.canvas-wrap', card);
+  overlay.innerHTML = '';
+  const sec = getSection(slideId);
+  if (!sec) return;
+  const byEid = {};
+  state.comments.filter(c => c.slideId === slideId).forEach(c => {
+    (byEid[c.eid] = byEid[c.eid] || []).push(c);
+  });
+  const wrapRect = wrap.getBoundingClientRect();
+  Object.entries(byEid).forEach(([eid, list]) => {
+    const el = sec.querySelector(`[data-eid="${eid}"]`);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const b = document.createElement('div');
+    b.className = 'cbadge';
+    b.textContent = list.length;
+    b.title = list.map(c => c.text).join(' / ');
+    b.style.left = (r.right - wrapRect.left) + 'px';
+    b.style.top = (r.top - wrapRect.top) + 'px';
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      openPopupFor(slideId, eid, b.getBoundingClientRect());
+    });
+    overlay.appendChild(b);
+  });
+}
+
+function openPopupFor(slideId, eid, anchorRect) {
+  popupTarget = { slideId, eid };
+  const p = $('#cPopup');
+  const i = state.slides.findIndex(s => s.id === slideId);
+  const sec = getSection(slideId);
+  const el = sec?.querySelector(`[data-eid="${eid}"]`);
+  $('#cpCtx').textContent = `スライド${i + 1} 「${el ? excerptOf(el) : '(削除済み要素)'}」`;
+  renderPopupList();
+  p.style.display = 'block';
+  const pw = 300, ph_ = p.offsetHeight || 240;
+  let left = anchorRect.left - pw / 2 + anchorRect.width / 2;
+  let top = anchorRect.bottom + 8;
+  left = Math.min(Math.max(8, left), window.innerWidth - pw - 8);
+  if (top + ph_ > window.innerHeight - 8) top = Math.max(60, anchorRect.top - ph_ - 8);
+  p.style.left = left + 'px';
+  p.style.top = top + 'px';
+  $('#cpInput').focus();
+}
+
+function renderPopupList() {
+  const list = $('#cpList');
+  const items = state.comments.filter(c => c.slideId === popupTarget.slideId && c.eid === popupTarget.eid);
+  list.innerHTML = items.length
+    ? items.map(c => `<div class="pitem"><span>${escapeHtml(c.text)}</span><button data-cid="${c.id}" title="削除">🗑</button></div>`).join('')
+    : '<div class="pempty">まだコメントはありません</div>';
+  $$('button[data-cid]', list).forEach(b => b.addEventListener('click', () => {
+    state.comments = state.comments.filter(c => c.id !== b.dataset.cid);
+    renderPopupList();
+    renderMarkersFor(popupTarget.slideId);
+    refreshThumbsSoon();
+    scheduleSave();
+  }));
+}
+
+function addComment() {
+  const text = $('#cpInput').value.trim();
+  if (!text || !popupTarget) return;
+  const sec = getSection(popupTarget.slideId);
+  const el = sec?.querySelector(`[data-eid="${popupTarget.eid}"]`);
+  state.comments.push({
+    id: 'c' + (state.nextCid++),
+    slideId: popupTarget.slideId,
+    eid: popupTarget.eid,
+    excerpt: el ? excerptOf(el) : '',
+    text,
+    ts: Date.now(),
+  });
+  $('#cpInput').value = '';
+  renderPopupList();
+  renderMarkersFor(popupTarget.slideId);
+  refreshThumbsSoon();
+  scheduleSave();
+}
+
+function closePopup() {
+  $('#cPopup').style.display = 'none';
+  popupTarget = null;
+}
+
+$('#cpAdd').addEventListener('click', addComment);
+$('#cpClose').addEventListener('click', closePopup);
+$('#cpInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addComment(); }
+});
+
+/* ===================== メモ ===================== */
+
+document.addEventListener('input', e => {
+  const id = e.target.dataset?.memo;
+  if (id) {
+    state.memos[id] = e.target.value;
+    scheduleSave();
+    refreshThumbsSoon();
+  }
+});
+
+/* ===================== コメント一覧ドロワー ===================== */
+
+function renderDrawer() {
+  const body = $('#drawerBody');
+  let html = '';
+  state.slides.forEach((s, i) => {
+    const cs = state.comments.filter(c => c.slideId === s.id);
+    const memo = (state.memos[s.id] || '').trim();
+    if (!cs.length && !memo) return;
+    html += `<div class="dgroup"><h4 data-jump="${s.id}">■ スライド${i + 1}</h4>`;
+    cs.forEach(c => {
+      html += `<div class="ditem"><button class="ddel" data-cid="${c.id}">🗑</button>` +
+        `<span class="dtarget">要素「${escapeHtml(c.excerpt)}」</span>${escapeHtml(c.text)}</div>`;
+    });
+    if (memo) html += `<div class="ditem memo"><span class="dtarget">スライドメモ</span>${escapeHtml(memo)}</div>`;
+    html += '</div>';
+  });
+  body.innerHTML = html || '<div style="color:#9ca3af;font-size:12.5px;text-align:center;padding:30px 0;">コメント・メモはまだありません。<br>編集モードで要素をクリック →「💬 コメント」、<br>または各スライド下のメモ欄に入力してください。</div>';
+  $$('h4[data-jump]', body).forEach(h => h.addEventListener('click', () => {
+    $(`.slide-card[data-id="${h.dataset.jump}"]`)?.scrollIntoView({ behavior: 'smooth' });
+  }));
+  $$('.ddel', body).forEach(b => b.addEventListener('click', () => {
+    state.comments = state.comments.filter(c => c.id !== b.dataset.cid);
+    renderDrawer(); renderAllMarkers(); refreshThumbsSoon(); scheduleSave();
+  }));
+}
+
+$('#btnDrawer').addEventListener('click', () => {
+  renderDrawer();
+  $('#drawer').classList.toggle('open');
+});
+$('#drClose').addEventListener('click', () => $('#drawer').classList.remove('open'));
+
+/* ===================== AIへのお戻し（メモ一覧コピー） ===================== */
+
+function buildMemoText() {
+  const lines = [];
+  lines.push('【資料修正の指示メモ】');
+  lines.push(`対象資料: ${state.title}`);
+  lines.push('以下の指示に従って元のHTMLスライドを修正し、同じ規約（<section class="slide"> / 1280×720px / 1ファイル）のまま完全なHTMLを出力してください。スライド番号は現在の並び順です。');
+  lines.push('');
+  let any = false;
+  state.slides.forEach((s, i) => {
+    const cs = state.comments.filter(c => c.slideId === s.id);
+    const memo = (state.memos[s.id] || '').trim();
+    if (!cs.length && !memo) return;
+    any = true;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = s.html;
+    const label = tpl.content.firstElementChild?.dataset.label || '';
+    lines.push(`■ スライド${i + 1}${label ? `（${label}）` : ''}`);
+    cs.forEach(c => lines.push(`・要素「${c.excerpt}」: ${c.text}`));
+    if (memo) memo.split('\n').forEach(m => m.trim() && lines.push(`・スライド全体: ${m.trim()}`));
+    lines.push('');
+  });
+  if (!any) return null;
+  return lines.join('\n');
+}
+
+$('#btnCopyMemo').addEventListener('click', () => {
+  const text = buildMemoText();
+  if (!text) { toast('コメント・メモがまだありません'); return; }
+  copyText(text, '修正指示メモをコピーしました。AIに貼り付けてください');
+});
+
+/* ===================== 書き出し ===================== */
+
+function buildExportHtml() {
+  const sections = state.slides.map(s => {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = s.html;
+    const sec = tpl.content.firstElementChild;
+    $$('[data-eid]', sec).forEach(el => el.removeAttribute('data-eid'));
+    sec.removeAttribute('data-eid');
+    $$('[contenteditable]', sec).forEach(el => el.removeAttribute('contenteditable'));
+    return sec.outerHTML;
+  }).join('\n');
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(state.title)}</title>
+${state.fontLinks.join('\n')}
+<style>
+${state.css}
+</style>
+</head>
+<body>
+${sections}
+</body>
+</html>`;
+}
+
+$('#btnExport').addEventListener('click', () => {
+  if (!state.slides.length) return;
+  const html = buildExportHtml();
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.title || 'slides') + '.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  copyText(html, 'HTMLを書き出し＆クリップボードにコピーしました');
+});
+
+$('#btnNewTab').addEventListener('click', () => {
+  if (!state.slides.length) return;
+  const html = buildExportHtml();
+  const blob = new Blob([html], { type: 'text/html' });
+  window.open(URL.createObjectURL(blob), '_blank');
+});
+
+/* ===================== ツールバー ===================== */
+
+$('#btnMode').addEventListener('click', () => {
+  editMode = !editMode;
+  clearSelection(); closePopup();
+  updateModeUI();
+});
+
+$('#btnAddSlide').addEventListener('click', () => {
+  state.slides.push(makeBlankSlide());
+  renderAll(); scheduleSave();
+  $('#main').scrollTo({ top: $('#main').scrollHeight, behavior: 'smooth' });
+});
+
+$('#btnRevert').addEventListener('click', () => {
+  if (!state.original) return;
+  if (!confirm('読み込み時の状態に戻しますか？（直接編集した内容は失われます。コメント・メモは残ります）')) return;
+  state.css = state.original.css;
+  state.slides = state.original.slides.map(s => ({ ...s }));
+  renderAll(); scheduleSave();
+  toast('読み込み時の状態に戻しました');
+});
+
+$('#btnNew').addEventListener('click', () => {
+  if (state.slides.length && !confirm('現在の資料・コメント・メモをすべて破棄して、新しいHTMLを読み込みますか？')) return;
+  openImportModal(true);
+});
+
+$('#docTitle').addEventListener('input', e => { state.title = e.target.value; scheduleSave(); });
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.cbtn');
+  if (btn) {
+    const card = btn.closest('.slide-card');
+    clearSelection(); closePopup();
+    slideAct(card.dataset.id, btn.dataset.act);
+  }
+});
+
+window.addEventListener('resize', () => { applyScale(); renderAllMarkers(); clearSelection(); });
+
+/* ===================== インポートモーダル ===================== */
+
+function openImportModal(cancelable) {
+  $('#impText').value = '';
+  $('#impErr').style.display = 'none';
+  $('#btnImpCancel').style.display = cancelable ? '' : 'none';
+  $('#importModal').classList.remove('hidden');
+}
+
+function tryImport(text) {
+  const err = importDeck(text);
+  if (err) {
+    const e = $('#impErr');
+    e.textContent = '⚠ ' + err;
+    e.style.display = 'block';
+    return false;
+  }
+  $('#importModal').classList.add('hidden');
+  toast(`${state.slides.length}枚のスライドを読み込みました`);
+  return true;
+}
+
+$('#btnImport').addEventListener('click', () => {
+  const text = $('#impText').value.trim();
+  if (!text) { $('#impErr').textContent = '⚠ HTMLを貼り付けてください'; $('#impErr').style.display = 'block'; return; }
+  tryImport(text);
+});
+$('#btnSample').addEventListener('click', () => tryImport(SAMPLE_HTML));
+$('#btnCopyRule').addEventListener('click', () => copyText(RULE_PROMPT, '規約プロンプトをコピーしました。AIに貼り付けてください'));
+$('#btnImpCancel').addEventListener('click', () => $('#importModal').classList.add('hidden'));
+
+const dz = $('#dropZone');
+dz.addEventListener('click', () => $('#fileInput').click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f) f.text().then(tryImport);
+});
+$('#fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) f.text().then(tryImport);
+  e.target.value = '';
+});
+
+/* ===================== 起動 ===================== */
+
+(function init() {
+  const saved = localStorage.getItem(LS_KEY);
+  if (saved) {
+    try {
+      state = Object.assign(state, JSON.parse(saved));
+      if (state.slides.length) {
+        injectFonts();
+        $('#docTitle').value = state.title;
+        renderAll();
+        return;
+      }
+    } catch (e) { /* 破損時は新規 */ }
+  }
+  openImportModal(false);
+})();
+</script>
+</body>
+</html>
