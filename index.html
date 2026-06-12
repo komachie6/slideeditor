@@ -265,6 +265,7 @@
       <button class="tbtn" id="btnDrawer">💬 コメント一覧</button>
       <button class="tbtn" id="btnCopyMemo">📋 メモ一覧をコピー</button>
       <button class="tbtn dark" id="btnExport">⬇ HTML書き出し</button>
+      <button class="tbtn dark" id="btnPptx">📤 PowerPoint書き出し</button>
       <button class="tbtn" id="btnRevert">↺ リセット</button>
       <button class="tbtn warn" id="btnNew">新規読み込み</button>
       <span id="saveState">保存しました ✓</span>
@@ -1061,6 +1062,109 @@ $('#btnExport').addEventListener('click', () => {
   a.click();
   URL.revokeObjectURL(a.href);
   copyText(html, 'HTMLを書き出し＆クリップボードにコピーしました');
+});
+
+/* ===== PowerPoint書き出し =====
+   各スライドを高解像度PNG化して16:9のPPTXに全面配置。
+   メモ・コメントはスピーカーノートとして埋め込む。
+   GoogleスライドはこのPPTXをそのままインポート可能。 */
+
+/* タブが非表示だとブラウザがsetTimeoutを1回/分まで抑制し、
+   zip生成・画像化が事実上停止する。抑制対象外のMessageChannel経由で
+   遅延0msのタイマーを即時実行させ、書き出し中のタブ切替でも止まらないようにする */
+function fastTimers(win) {
+  const mc = new win.MessageChannel();
+  const q = [];
+  mc.port1.onmessage = () => { const f = q.shift(); if (f) f(); };
+  const orig = win.setTimeout;
+  win.setTimeout = function (cb, delay, ...a) {
+    if ((delay || 0) <= 4 && typeof cb === 'function') {
+      q.push(() => cb(...a));
+      mc.port2.postMessage(0);
+      return -1;
+    }
+    return orig.call(win, cb, delay, ...a);
+  };
+  return () => { win.setTimeout = orig; };
+}
+
+function loadScript(src, doc = document) {
+  return new Promise((res, rej) => {
+    const s = doc.createElement('script');
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => rej(new Error('ライブラリの読み込みに失敗しました（ネット接続を確認してください）'));
+    (doc.head || doc.documentElement).appendChild(s);
+  });
+}
+
+async function buildPptx(onProgress) {
+  if (!window.PptxGenJS) {
+    await loadScript('https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.min.js');
+  }
+  // 非表示iframeに書き出し用HTML（編集反映済み・eid除去済み）を展開して画像化する
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = `position:fixed;left:-99999px;top:0;width:1320px;height:${state.slides.length * 740 + 60}px;border:0;`;
+  document.body.appendChild(iframe);
+  try {
+    const loaded = new Promise(r => iframe.onload = r);
+    iframe.srcdoc = buildExportHtml();
+    await loaded;
+    const idoc = iframe.contentDocument;
+    const iwin = iframe.contentWindow;
+    fastTimers(iwin); // iframeごと破棄するので復元不要
+    await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js', idoc);
+    await idoc.fonts.ready;
+    await Promise.all([...idoc.images].map(img =>
+      img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
+
+    const sections = [...idoc.querySelectorAll('.slide')];
+    const pptx = new PptxGenJS();
+    pptx.defineLayout({ name: 'W16x9', width: 13.333, height: 7.5 });
+    pptx.layout = 'W16x9';
+    pptx.title = state.title;
+
+    for (let i = 0; i < sections.length; i++) {
+      onProgress?.(i + 1, sections.length);
+      const canvas = await iwin.html2canvas(sections[i], {
+        scale: 2, backgroundColor: null, logging: false, useCORS: true,
+      });
+      const slide = pptx.addSlide();
+      slide.background = { color: 'FFFFFF' };
+      slide.addImage({ data: canvas.toDataURL('image/png'), x: 0, y: 0, w: 13.333, h: 7.5 });
+
+      const sid = state.slides[i]?.id;
+      const notes = state.comments.filter(c => c.slideId === sid)
+        .map(c => `[コメント] 「${c.excerpt}」: ${c.text}`);
+      const memo = (state.memos[sid] || '').trim();
+      if (memo) notes.push(`[メモ] ${memo}`);
+      if (notes.length) slide.addNotes(notes.join('\n'));
+    }
+    return pptx;
+  } finally {
+    iframe.remove();
+  }
+}
+
+$('#btnPptx').addEventListener('click', async () => {
+  if (!state.slides.length) return;
+  const btn = $('#btnPptx');
+  if (btn.dataset.busy) return;
+  btn.dataset.busy = '1';
+  const orig = btn.textContent;
+  const restoreTimers = fastTimers(window);
+  try {
+    btn.textContent = '⏳ 準備中…';
+    const pptx = await buildPptx((n, total) => { btn.textContent = `⏳ 書き出し中 ${n}/${total}`; });
+    await pptx.writeFile({ fileName: (state.title || 'slides') + '.pptx' });
+    toast('PowerPointを書き出しました。Googleスライドにはこのファイルをそのままインポートできます');
+  } catch (e) {
+    toast('書き出しに失敗しました: ' + e.message);
+  } finally {
+    restoreTimers();
+    delete btn.dataset.busy;
+    btn.textContent = orig;
+  }
 });
 
 $('#btnNewTab').addEventListener('click', () => {
